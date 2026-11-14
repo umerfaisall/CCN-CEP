@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>mochi</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&family=Pixelify+Sans:wght@500;700&display=swap">
+</head>
+<body>
+<div class="app" id="app">
+  <aside class="side win">
+    <div class="tb"><span>♡ mochi.exe</span><i class="wb"><button type="button" title="minimize">_</button><button type="button" title="maximize">□</button><button type="button" title="sign out">×</button></i></div>
+    <header class="top">
+      <h1 class="brand">mochi<i>✦</i></h1>
+      <button class="pill" id="newGroup">+ group</button>
+    </header>
+    <nav id="list"></nav>
+    <button class="me" id="meCard">
+      <span id="meAv"></span>
+      <span class="mt"><b id="meName">…</b><small><i class="dot" id="dot"></i><span id="status">connecting…</span></small></span>
+      <span class="gear">✎</span>
+    </button>
+  </aside>
+
+  <main class="win">
+    <div class="tb"><span id="tbMain">chat.exe</span><i class="wb"><button type="button" title="minimize">_</button><button type="button" title="maximize">□</button><button type="button" title="close chat">×</button></i></div>
+    <div id="empty">
+      <div class="board"><button data-go="hi">♡<br>say hi</button><button data-go="group">★<br>make a group</button><button data-go="pic">✿<br>add a pic</button></div>
+      <h2>mochi</h2><p>pick a chat or start in the lobby ✦</p>
+    </div>
+    <section id="chat" hidden>
+      <header class="head">
+        <button id="back" aria-label="back">←</button>
+        <span id="hAv"></span>
+        <div><h2 id="hName"></h2><p id="hSub"></p></div>
+        <button class="pill" id="addBtn" hidden>+ add</button>
+      </header>
+      <div id="msgs"></div>
+      <div id="typing"></div>
+      <form id="composer">
+        <input id="text" maxlength="1000" autocomplete="off" placeholder="type a message…">
+        <button class="send">send ♡</button>
+      </form>
+    </section>
+  </main>
+</div>
+
+<dialog id="login">
+  <div class="tb"><span>welcome.exe</span></div>
+  <form id="loginForm">
+    <h3 class="brand">mochi<i>✦</i></h3>
+    <p class="mut">pick a name and hop in ♡</p>
+    <label>username<input id="user" maxlength="20" required autocomplete="username" placeholder="moonchild"></label>
+    <label>display name <span>(optional)</span><input id="disp" maxlength="32" placeholder="what friends see"></label>
+    <p class="err" id="loginErr"></p>
+    <button class="btn">sign in →</button>
+  </form>
+</dialog>
+
+<dialog id="profile">
+  <div class="tb"><span>profile.exe</span><button type="button" class="x" data-x>×</button></div>
+  <form id="profileForm">
+    <div class="pic">
+      <button type="button" id="pAv" aria-label="change photo"></button>
+      <div><button type="button" class="pill" id="pPick">upload photo</button> <button type="button" class="pill ghost" id="pClear">remove</button></div>
+    </div>
+    <input type="file" id="file" accept="image/*" hidden>
+    <label>display name<input id="pName" maxlength="32"></label>
+    <label>bio / away message<textarea id="pBio" maxlength="160" rows="2" placeholder="brb, touching grass ♡"></textarea></label>
+    <div class="acts"><button type="button" class="pill ghost" data-x>cancel</button><button class="btn">save</button></div>
+  </form>
+</dialog>
+
+<dialog id="groupDlg">
+  <div class="tb"><span>new_group.exe</span><button type="button" class="x" data-x>×</button></div>
+  <form id="groupForm">
+    <label>group name<input id="gName" maxlength="40" required placeholder="study besties"></label>
+    <div class="acts"><button type="button" class="pill ghost" data-x>cancel</button><button class="btn">create</button></div>
+  </form>
+</dialog>
+
+<dialog id="addDlg">
+  <div class="tb"><span>add_friend.exe</span><button type="button" class="x" data-x>×</button></div>
+  <div class="dbody">
+    <div id="pick"></div>
+    <div class="acts"><button type="button" class="pill ghost" data-x>close</button></div>
+  </div>
+</dialog>
+
+<div id="toasts"></div>
+<script src="/app.js"></script>
+</body>
+</html>

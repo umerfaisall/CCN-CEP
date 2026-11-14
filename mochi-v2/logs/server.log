@@ -1,0 +1,133 @@
+2026-10-31 14:22:03.248 serving E:\mochi-chaty2k\mochi-chaty2k\mochi-v2\web | log file: E:\mochi-chaty2k\mochi-chaty2k\mochi-v2\logs\server.log
+2026-10-31 14:22:03.249 open http://localhost:5000 here, or http://192.168.100.126:5000 from other hosts
+2026-10-31 14:22:24.608 127.0.0.1:60811 websocket open
+2026-10-31 14:22:24.611 RECV 127.0.0.1:60811 58B {"type":"LOGIN","username":"Umerrr","display_name":"umwe"}
+2026-10-31 14:22:24.613 SEND Umerrr 72B {"type":"LOGIN_OK","username":"Umerrr","server_time":1793438544.6133018}
+2026-10-31 14:22:24.614 JOINED Umerrr from 127.0.0.1:60811
+2026-10-31 14:22:24.615 SEND Umerrr 95B {"type":"PRESENCE","event":"JOINED","username":"Umerrr","seq":1,"timestamp":1793438544.6151583}
+2026-10-31 14:22:24.615 SEND Umerrr 95B {"type":"USER_LIST","users":[{"username":"Umerrr","display_name":"umwe","bio":"","avatar":""}]}
+2026-10-31 14:22:24.616 SEND Umerrr 33B {"type":"GROUP_LIST","groups":[]}
+2026-10-31 14:22:24.616 RECV Umerrr 39B {"type":"PING","id":6421.9000000059605}
+2026-10-31 14:22:24.616 SEND Umerrr 72B {"type":"PONG","id":6421.9000000059605,"server_time":1793438544.6166196}
+2026-10-31 14:22:28.616 RECV Umerrr 38B {"type":"PING","id":10422.90000000596}
+2026-10-31 14:22:28.616 SEND Umerrr 71B {"type":"PONG","id":10422.90000000596,"server_time":1793438548.6169298}
+2026-10-31 14:22:32.617 RECV Umerrr 28B {"type":"PING","id":14423.5}
+2026-10-31 14:22:32.617 SEND Umerrr 61B {"type":"PONG","id":14423.5,"server_time":1793438552.6173253}
+2026-10-31 14:22:36.622 RECV Umerrr 38B {"type":"PING","id":18429.20000001788}
+2026-10-31 14:22:36.623 SEND Umerrr 70B {"type":"PONG","id":18429.20000001788,"server_time":1793438556.623079}
+2026-10-31 14:22:40.623 RECV Umerrr 38B {"type":"PING","id":22429.30000001192}
+2026-10-31 14:22:40.623 SEND Umerrr 71B {"type":"PONG","id":22429.30000001192,"server_time":1793438560.6233234}
+2026-10-31 14:22:41.819 LEFT Umerrr
+2026-10-31 14:22:45.184 127.0.0.1:64585 websocket open
+2026-10-31 14:22:45.186 RECV 127.0.0.1:64585 58B {"type":"LOGIN","username":"Umerrr","display_name":"umwe"}
+2026-10-31 14:22:45.186 SEND Umerrr 71B {"type":"LOGIN_OK","username":"Umerrr","server_time":1793438565.186563}
+2026-10-31 14:22:45.186 JOINED Umerrr from 127.0.0.1:64585
+2026-10-31 14:22:45.187 SEND Umerrr 95B {"type":"PRESENCE","event":"JOINED","username":"Umerrr","seq":3,"timestamp":1793438565.1870284}
+2026-10-31 14:22:45.187 SEND Umerrr 95B {"type":"USER_LIST","users":[{"username":"Umerrr","display_name":"umwe","bio":"","avatar":""}]}
+2026-10-31 14:22:45.188 SEND Umerrr 33B {"type":"GROUP_LIST","groups":[]}
+2026-10-31 14:22:45.188 RECV Umerrr 39B {"type":"PING","id":1914.5999999940395}
+2026-10-31 14:22:45.188 SEND Umerrr 72B {"type":"PONG","id":1914.5999999940395,"server_time":1793438565.1884522}
+2026-10-31 14:22:49.188 RECV Umerrr 38B {"type":"PING","id":5915.299999982119}
+2026-10-31 14:22:49.189 SEND Umerrr 71B {"type":"PONG","id":5915.299999982119,"server_time":1793438569.1889746}
+2026-10-31 14:22:53.189 RECV Umerrr 38B {"type":"PING","id":9915.699999988079}
+2026-10-31 14:22:53.189 SEND Umerrr 71B {"type":"PONG","id":9915.699999988079,"server_time":1793438573.1896288}
+2026-10-31 14:22:53.976 RECV Umerrr 51B {"type":"TYPING","scope":"public","is_typing":true}
+2026-10-31 14:22:54.359 RECV Umerrr 44B {"type":"CHAT","text":"hi","scope":"public"}
+2026-10-31 14:22:54.360 SEND Umerrr 102B {"type":"CHAT","username":"Umerrr","text":"hi","scope":"public","seq":4,"timestamp":1793438574.360304}
+2026-10-31 14:22:54.360 CHAT seq=4 Umerrr -> public (2 chars, 1 recipients)
+2026-10-31 14:22:54.360 RECV Umerrr 52B {"type":"TYPING","scope":"public","is_typing":false}
+2026-10-31 14:22:57.188 RECV Umerrr 38B {"type":"PING","id":13915.40000000596}
+2026-10-31 14:22:57.189 SEND Umerrr 71B {"type":"PONG","id":13915.40000000596,"server_time":1793438577.1891322}
+2026-10-31 14:22:58.086 RECV Umerrr 51B {"type":"TYPING","scope":"public","is_typing":true}
+2026-10-31 14:23:00.716 RECV Umerrr 51B {"type":"TYPING","scope":"public","is_typing":true}
+2026-10-31 14:23:01.189 RECV Umerrr 26B {"type":"PING","id":17916}
+2026-10-31 14:23:01.189 SEND Umerrr 58B {"type":"PONG","id":17916,"server_time":1793438581.189821}
+2026-10-31 14:23:03.255 RECV Umerrr 51B {"type":"TYPING","scope":"public","is_typing":true}
+2026-10-31 14:23:05.190 RECV Umerrr 28B {"type":"PING","id":21916.5}
+2026-10-31 14:23:05.190 SEND Umerrr 61B {"type":"PONG","id":21916.5,"server_time":1793438585.1905048}
+2026-10-31 14:23:05.852 RECV Umerrr 51B {"type":"TYPING","scope":"public","is_typing":true}
+2026-10-31 14:23:06.688 RECV Umerrr 68B {"type":"CHAT","text":"boys something is happenin","scope":"public"}
+2026-10-31 14:23:06.689 SEND Umerrr 127B {"type":"CHAT","username":"Umerrr","text":"boys something is happenin","scope":"public","seq":5,"timestamp":1793438586.6889102}
+2026-10-31 14:23:06.689 CHAT seq=5 Umerrr -> public (26 chars, 1 recipients)
+2026-10-31 14:23:06.689 RECV Umerrr 52B {"type":"TYPING","scope":"public","is_typing":false}
+2026-10-31 14:23:09.189 RECV Umerrr 38B {"type":"PING","id":25915.90000000596}
+2026-10-31 14:23:09.189 SEND Umerrr 71B {"type":"PONG","id":25915.90000000596,"server_time":1793438589.1897852}
+2026-10-31 14:23:13.188 RECV Umerrr 26B {"type":"PING","id":29915}
+2026-10-31 14:23:13.189 SEND Umerrr 59B {"type":"PONG","id":29915,"server_time":1793438593.1890008}
+2026-10-31 14:23:17.189 RECV Umerrr 38B {"type":"PING","id":33915.90000000596}
+2026-10-31 14:23:17.189 SEND Umerrr 70B {"type":"PONG","id":33915.90000000596,"server_time":1793438597.189578}
+2026-10-31 14:23:21.194 RECV Umerrr 38B {"type":"PING","id":37920.90000000596}
+2026-10-31 14:23:21.195 SEND Umerrr 71B {"type":"PONG","id":37920.90000000596,"server_time":1793438601.1949422}
+2026-10-31 14:23:23.439 RECV Umerrr 48B {"type":"GROUP_CREATE","name":"CS - 327 Projct"}
+2026-10-31 14:23:23.439 SEND Umerrr 58B {"type":"GROUP_CREATED","id":"1","name":"CS - 327 Projct"}
+2026-10-31 14:23:23.439 SEND Umerrr 89B {"type":"GROUP_LIST","groups":[{"id":"1","name":"CS - 327 Projct","members":["Umerrr"]}]}
+2026-10-31 14:23:23.439 GROUP 1 'CS - 327 Projct' created by Umerrr
+2026-10-31 14:23:25.193 RECV Umerrr 38B {"type":"PING","id":41919.69999998808}
+2026-10-31 14:23:25.193 SEND Umerrr 71B {"type":"PONG","id":41919.69999998808,"server_time":1793438605.1935186}
+2026-10-31 14:23:29.191 RECV Umerrr 28B {"type":"PING","id":45918.5}
+2026-10-31 14:23:29.192 SEND Umerrr 61B {"type":"PONG","id":45918.5,"server_time":1793438609.1920846}
+2026-10-31 14:23:33.888 RECV Umerrr 38B {"type":"PING","id":50615.29999998212}
+2026-10-31 14:23:33.889 SEND Umerrr 71B {"type":"PONG","id":50615.29999998212,"server_time":1793438613.8891044}
+2026-10-31 14:23:37.874 RECV Umerrr 38B {"type":"PING","id":54600.90000000596}
+2026-10-31 14:23:37.874 SEND Umerrr 71B {"type":"PONG","id":54600.90000000596,"server_time":1793438617.8746948}
+2026-10-31 14:23:41.883 RECV Umerrr 28B {"type":"PING","id":58609.5}
+2026-10-31 14:23:41.883 SEND Umerrr 61B {"type":"PONG","id":58609.5,"server_time":1793438621.8837712}
+2026-10-31 14:23:45.879 RECV Umerrr 38B {"type":"PING","id":62606.09999999404}
+2026-10-31 14:23:45.880 SEND Umerrr 70B {"type":"PONG","id":62606.09999999404,"server_time":1793438625.880216}
+2026-10-31 14:23:49.874 RECV Umerrr 26B {"type":"PING","id":66601}
+2026-10-31 14:23:49.874 SEND Umerrr 59B {"type":"PONG","id":66601,"server_time":1793438629.8747077}
+2026-10-31 14:23:53.895 RECV Umerrr 38B {"type":"PING","id":70621.90000000596}
+2026-10-31 14:23:53.895 SEND Umerrr 71B {"type":"PONG","id":70621.90000000596,"server_time":1793438633.8955197}
+2026-10-31 14:23:57.875 RECV Umerrr 38B {"type":"PING","id":74601.79999998212}
+2026-10-31 14:23:57.875 SEND Umerrr 71B {"type":"PONG","id":74601.79999998212,"server_time":1793438637.8755329}
+2026-10-31 14:24:01.884 RECV Umerrr 26B {"type":"PING","id":78611}
+2026-10-31 14:24:01.884 SEND Umerrr 59B {"type":"PONG","id":78611,"server_time":1793438641.8847673}
+2026-10-31 14:24:05.888 RECV Umerrr 38B {"type":"PING","id":82613.29999998212}
+2026-10-31 14:24:05.888 SEND Umerrr 70B {"type":"PONG","id":82613.29999998212,"server_time":1793438645.888732}
+2026-10-31 14:24:09.877 RECV Umerrr 26B {"type":"PING","id":86604}
+2026-10-31 14:24:09.877 SEND Umerrr 58B {"type":"PONG","id":86604,"server_time":1793438649.877825}
+2026-10-31 14:24:13.879 RECV Umerrr 38B {"type":"PING","id":90605.59999999404}
+2026-10-31 14:24:13.879 SEND Umerrr 71B {"type":"PONG","id":90605.59999999404,"server_time":1793438653.8794293}
+2026-10-31 14:24:17.881 RECV Umerrr 28B {"type":"PING","id":94607.5}
+2026-10-31 14:24:17.881 SEND Umerrr 61B {"type":"PONG","id":94607.5,"server_time":1793438657.8814552}
+2026-10-31 14:24:21.888 RECV Umerrr 26B {"type":"PING","id":98615}
+2026-10-31 14:24:21.888 SEND Umerrr 59B {"type":"PONG","id":98615,"server_time":1793438661.8887885}
+2026-10-31 14:24:25.876 RECV Umerrr 39B {"type":"PING","id":102602.59999999404}
+2026-10-31 14:24:25.876 SEND Umerrr 72B {"type":"PONG","id":102602.59999999404,"server_time":1793438665.8763204}
+2026-10-31 14:24:29.876 RECV Umerrr 39B {"type":"PING","id":106602.59999999404}
+2026-10-31 14:24:29.876 SEND Umerrr 72B {"type":"PONG","id":106602.59999999404,"server_time":1793438669.8765645}
+2026-10-31 14:25:02.881 RECV Umerrr 39B {"type":"PING","id":139605.69999998808}
+2026-10-31 14:25:02.881 SEND Umerrr 72B {"type":"PONG","id":139605.69999998808,"server_time":1793438702.8816395}
+2026-10-31 14:26:02.880 RECV Umerrr 39B {"type":"PING","id":199606.59999999404}
+2026-10-31 14:26:02.880 SEND Umerrr 72B {"type":"PONG","id":199606.59999999404,"server_time":1793438762.8806334}
+2026-10-31 14:26:32.166 127.0.0.1:64585 closed (peer closed)
+2026-10-31 14:26:32.170 LEFT Umerrr
+2026-10-31 15:13:18.169 127.0.0.1:65376 websocket open
+2026-10-31 15:13:18.504 RECV 127.0.0.1:65376 58B {"type":"LOGIN","username":"Umerrr","display_name":"umwe"}
+2026-10-31 15:13:18.504 SEND Umerrr 72B {"type":"LOGIN_OK","username":"Umerrr","server_time":1793441598.5046046}
+2026-10-31 15:13:18.504 JOINED Umerrr from 127.0.0.1:65376
+2026-10-31 15:13:18.505 SEND Umerrr 94B {"type":"PRESENCE","event":"JOINED","username":"Umerrr","seq":7,"timestamp":1793441598.505208}
+2026-10-31 15:13:18.505 SEND Umerrr 95B {"type":"USER_LIST","users":[{"username":"Umerrr","display_name":"umwe","bio":"","avatar":""}]}
+2026-10-31 15:13:18.505 SEND Umerrr 89B {"type":"GROUP_LIST","groups":[{"id":"1","name":"CS - 327 Projct","members":["Umerrr"]}]}
+2026-10-31 15:13:18.505 SEND Umerrr 262B {"type":"HISTORY","messages":[{"type":"CHAT","username":"Umerrr","text":"hi","scope":"public","seq":4,"timestamp":1793438574.360304},{"type":"CHAT","username":"...
+2026-10-31 15:13:18.523 RECV Umerrr 38B {"type":"PING","id":3035287.400000006}
+2026-10-31 15:13:18.523 SEND Umerrr 71B {"type":"PONG","id":3035287.400000006,"server_time":1793441598.5236757}
+2026-10-31 15:13:22.843 RECV Umerrr 38B {"type":"PING","id":3039608.699999988}
+2026-10-31 15:13:22.843 SEND Umerrr 71B {"type":"PONG","id":3039608.699999988,"server_time":1793441602.8436415}
+2026-10-31 15:13:26.849 RECV Umerrr 38B {"type":"PING","id":3043614.900000006}
+2026-10-31 15:13:26.849 SEND Umerrr 70B {"type":"PONG","id":3043614.900000006,"server_time":1793441606.849807}
+2026-10-31 15:13:30.838 RECV Umerrr 38B {"type":"PING","id":3047603.699999988}
+2026-10-31 15:13:30.838 SEND Umerrr 71B {"type":"PONG","id":3047603.699999988,"server_time":1793441610.8387272}
+2026-10-31 15:13:34.837 RECV Umerrr 38B {"type":"PING","id":3051602.699999988}
+2026-10-31 15:13:34.837 SEND Umerrr 71B {"type":"PONG","id":3051602.699999988,"server_time":1793441614.8375626}
+2026-10-31 15:13:38.850 RECV Umerrr 30B {"type":"PING","id":3055615.5}
+2026-10-31 15:13:38.850 SEND Umerrr 63B {"type":"PONG","id":3055615.5,"server_time":1793441618.8504343}
+2026-10-31 15:13:42.848 RECV Umerrr 28B {"type":"PING","id":3059614}
+2026-10-31 15:13:42.849 SEND Umerrr 61B {"type":"PONG","id":3059614,"server_time":1793441622.8491628}
+2026-10-31 15:14:02.839 RECV Umerrr 38B {"type":"PING","id":3079604.400000006}
+2026-10-31 15:14:02.839 SEND Umerrr 71B {"type":"PONG","id":3079604.400000006,"server_time":1793441642.8396833}
+2026-10-31 15:15:02.846 RECV Umerrr 30B {"type":"PING","id":3139609.5}
+2026-10-31 15:15:02.848 SEND Umerrr 63B {"type":"PONG","id":3139609.5,"server_time":1793441702.8476417}
+2026-10-31 15:16:02.842 RECV Umerrr 38B {"type":"PING","id":3199604.900000006}
+2026-10-31 15:16:02.843 SEND Umerrr 71B {"type":"PONG","id":3199604.900000006,"server_time":1793441762.8435552}
+2026-10-31 15:16:53.306 LEFT Umerrr
