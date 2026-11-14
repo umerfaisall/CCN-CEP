@@ -53,7 +53,7 @@ Then open `http://localhost:5000` on this machine, or `http://<printed LAN IP>:5
 | `--no-log` | console only |
 | `--verbose` | also print every SEND/RECV line on the console |
 
-Benchmark (unchanged original tool), run from another host: `py ..\..\bench.py <server-ip> 5000 5`
+Benchmark (copy of the original tool, `mochi-v2/bench.py`), run from another host: `py bench.py <server-ip> 5000 5`
 
 ## 4. Backend: how the split was done
 

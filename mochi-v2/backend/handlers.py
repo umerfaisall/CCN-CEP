@@ -1,11 +1,5 @@
-"""What the server does on receipt of each client message (the protocol logic in protocol_spec.md).
-
-Every handler after login is called as fn(conn, me, msg): the socket, the sender's profile dict and
-the parsed JSON object.
-"""
 import re
 import time
-
 import config
 import logger
 import state
@@ -22,139 +16,282 @@ ROUTE_ERRORS = {
 }
 
 
-def route(conn, me, msg):
-    """Who receives a CHAT/TYPING with this scope. Returns (targets, extra_fields) or an error code.
-    Caller holds state.lock."""
-    scope = msg.get("scope", "public")
+def route(conn, sender, msg):
+    """
+    Decide WHO receives a CHAT or TYPING message, based on its "scope".
+    Returns (recipients, extra_fields), or an error code string.
+    """
+    scope = msg.get("scope", "public")  # a message without "scope" counts as public
     if scope == "public":
         return list(state.clients), {}
     if scope == "private":
-        r = msg.get("recipient")
-        to = state.find(r)
-        if not isinstance(r, str) or to is conn:
+        recipient_name = msg.get("recipient")
+        recipient_conn = state.find(recipient_name)  
+        if not isinstance(recipient_name, str) or recipient_conn is conn: 
             return "INVALID_RECIPIENT"
-        if to is None:
-            return "USER_OFFLINE"
-        return [conn, to], {"recipient": state.clients[to]["username"]}  # sender gets the official copy too
+        if recipient_conn is None:
+            return "USER_OFFLINE"  # no offline delivery in this protocol
+        return [conn, recipient_conn], {"recipient": state.clients[recipient_conn]["username"]}
+    
     if scope == "group":
-        g = state.groups.get(str(msg.get("group_id")))
-        if not g or me["username"] not in g["members"]:
+        group = state.groups.get(str(msg.get("group_id"))) 
+        if not group or sender["username"] not in group["members"]:  # unknown group, or sender not in it
             return "NOT_GROUP_MEMBER"
-        return state.members_of(g), {"group_id": g["id"]}
+        return state.members_of(group), {"group_id": group["id"]}  # offline members are skipped
     return "INVALID_SCOPE"
 
 
 def login(conn, msg):
-    name, disp = msg.get("username"), msg.get("display_name")
-    name = name.strip() if isinstance(name, str) else ""
-    if not name or len(name) > config.MAX_USERNAME or not name.isprintable():
-        return error(conn, "INVALID_USERNAME", f"Username must be 1-{config.MAX_USERNAME} printable characters")
-    disp = disp.strip()[:config.MAX_DISPLAY_NAME] if isinstance(disp, str) else ""
-    with state.lock:  # check and insert in one step, so two clients can't both claim a name
-        if state.find(name):
-            return error(conn, "USERNAME_TAKEN", "That username is online right now, pick another")
-        state.clients[conn] = {"username": name, "display_name": disp or name, "bio": "", "avatar": ""}
-        send(conn, {"type": "LOGIN_OK", "username": name, "server_time": time.time()})
-        logger.log("JOINED", name, "from", state.peers.get(conn, "?"))
-        presence("JOINED", name)
-        push_users()
-        push_groups([conn])
-        send_history(conn)
+    """
+    Expected message format:
+      {"type": "LOGIN", "username": "ali", "display_name": "Ali"}  # display_name optional
+    """
+    username, display_name = msg.get("username"), msg.get("display_name")
+    username = username.strip() if isinstance(username, str) else ""
+    if (
+        not username
+        or len(username) > config.MAX_USERNAME
+        or not username.isprintable()  # blocks control chars like \n, \r, \t, null bytes
+    ):
+        return error(
+            conn,
+            "INVALID_USERNAME",
+            f"Username must be 1-{config.MAX_USERNAME} printable characters",
+        )
+
+    # 3. Normalize display_name (optional; falls back to username later)
+    display_name = (
+        display_name.strip()[:config.MAX_DISPLAY_NAME]
+        if isinstance(display_name, str)
+        else ""
+    )
+
+    # 4. Critical section: check uniqueness and register the session atomically
+    with state.lock:
+        # Case-insensitive check: "ALI" is rejected if "ali" is already online
+        if state.find(username):
+            return error(
+                conn,
+                "USERNAME_TAKEN",
+                "That username is online right now, pick another",
+            )
+
+        # Transition point: presence of `conn` in `state.clients` means "logged in"
+        state.clients[conn] = {
+            "username": username,
+            "display_name": display_name or username,
+            "bio": "",
+            "avatar": "",
+        }
+
+        # Confirm login to this client
+        send(conn, {"type": "LOGIN_OK", "username": username, "server_time": time.time()})
+
+        # Record event and notify everyone else
+        logger.log("JOINED", username, "from", state.peers.get(conn, "?"))
+        presence("JOINED", username)
+        push_users()          # broadcast updated online user list to all clients
+        push_groups([conn])   # send existing groups only to this client
+        send_history(conn)    # replay recent message history to this client
 
 
-def on_ping(conn, me, msg):
+def on_ping(conn, sender, msg):
     send(conn, {"type": "PONG", "id": msg.get("id"), "server_time": time.time()})
 
 
-def on_profile(conn, me, msg):
-    d, b, a = msg.get("display_name", ""), msg.get("bio", ""), msg.get("avatar", "")
-    if not all(isinstance(x, str) for x in (d, b, a)):
-        return error(conn, "INVALID_PROFILE", "Profile fields must be strings")
-    if len(d.strip()) > config.MAX_DISPLAY_NAME or len(b) > config.MAX_BIO or len(a) > config.MAX_AVATAR:
-        return error(conn, "PROFILE_TOO_LARGE",
-                     f"Name max {config.MAX_DISPLAY_NAME}, bio max {config.MAX_BIO}, avatar max {config.MAX_AVATAR} chars")
-    if a and not AVATAR_RE.fullmatch(a):
-        return error(conn, "INVALID_PROFILE", "Avatar must be a base64 png/jpeg/webp/gif data URL")
+def on_profile(conn, sender, msg):
+    display_name = msg.get("display_name", "")
+    bio = msg.get("bio", "")
+    avatar = msg.get("avatar", "")
+    fields = (display_name, bio, avatar)
+
+    if not all(isinstance(field, str) for field in fields):
+        return error(conn, "INVALID_PROFILE", "All profile fields must be strings.")
+    
+    # 3. Enforce maximum length constraints
+    exceeds_length_limits = (
+        len(display_name.strip()) > config.MAX_DISPLAY_NAME or 
+        len(bio) > config.MAX_BIO or 
+        len(avatar) > config.MAX_AVATAR
+    )
+    if exceeds_length_limits:
+        return error(
+            conn, 
+            "PROFILE_TOO_LARGE",
+            f"Exceeded limits: Name max {config.MAX_DISPLAY_NAME}, "
+            f"Bio max {config.MAX_BIO}, Avatar max {config.MAX_AVATAR} chars."
+        )
+    
+ 
+    if avatar and not AVATAR_RE.fullmatch(avatar):
+        return error(conn, "INVALID_PROFILE", "Avatar must be a base64 png/jpeg/webp/gif data URL.")
+    
+    # 5. Apply updates thread-safely and broadcast changes
     with state.lock:
-        me.update(display_name=d.strip() or me["username"], bio=b.strip(), avatar=a)
-        send(conn, {"type": "PROFILE_OK", "profile": me})
+        # Fall back to username if display name is left empty after stripping
+        updated_name = display_name.strip() or sender["username"]
+        
+        sender.update(
+            display_name=updated_name,
+            bio=bio.strip(),
+            avatar=avatar
+        )
+        
+        # Acknowledge the user and update everyone's sidebar
+        send(conn, {"type": "PROFILE_OK", "profile": sender})
         push_users()
 
 
-def on_chat(conn, me, msg):
+def on_chat(conn, sender, msg):
+    """
+    Handles incoming chat messages (public, private, or group).
+    """
+    # 1. Extract and validate message text
     text = msg.get("text")
-    if not isinstance(text, str) or not text.strip():
-        return error(conn, "EMPTY_MESSAGE", "Message cannot be empty")
+    is_invalid_text = not isinstance(text, str) or not text.strip()
+    
+    if is_invalid_text:
+        return error(conn, "EMPTY_MESSAGE", "Message cannot be empty.")
+        
     if len(text) > config.MAX_TEXT:
-        return error(conn, "MESSAGE_TOO_LONG", f"Maximum is {config.MAX_TEXT} characters")
-    with state.lock:  # seq is assigned AND emitted under the lock: every client sees the same order
-        r = route(conn, me, msg)
-        if isinstance(r, str):
-            return error(conn, r, ROUTE_ERRORS[r])
-        targets, extra = r
-        pkt = {"type": "CHAT", "username": me["username"], "text": text.strip(), "scope": msg.get("scope", "public"),
-               "seq": state.next_seq(), "timestamp": time.time(), **extra}
-        state.history.append(pkt)
-        emit(pkt, targets)
-        logger.log(f"CHAT seq={pkt['seq']} {me['username']} -> {pkt['scope']} "
-                   f"({len(text)} chars, {len(targets)} recipients)")
+        return error(conn, "MESSAGE_TOO_LONG", f"Maximum is {config.MAX_TEXT} characters.")
+    
+    with state.lock:
+        route_result = route(conn, sender, msg)
+        if isinstance(route_result, str):
+            return error(conn, route_result, ROUTE_ERRORS[route_result])
+            
+        recipients, extra_fields = route_result
+        
+        # Construct the official server-certified packet
+        packet = {
+            "type": "CHAT",
+            "username": sender["username"],
+            "text": text.strip(),
+            "scope": msg.get("scope", "public"),
+            "seq": state.next_seq(),
+            "timestamp": time.time(),
+            **extra_fields  # Dynamically adds "recipient" or "group_id"
+        }
+        
+        # Save to the in-memory history buffer and transmit to all target recipients
+        state.history.append(packet)  # Stores the last 500 messages for HISTORY replay
+        emit(packet, recipients)
+        
+        # Log the successful chat delivery
+        logger.log(
+            f"CHAT seq={packet['seq']} {sender['username']} -> {packet['scope']} "
+            f"({len(text)} chars, {len(recipients)} recipients)"
+        )
 
 
-def on_typing(conn, me, msg):
-    """Relay typing state to the other participants. No seq, no history, and bad targets are dropped
-    silently: typing is frequent and only advisory."""
+def on_typing(conn, sender, msg):
+    """
+    Handles typing indicators
+    """
     if msg.get("scope") not in ("public", "private", "group"):
         return
+        
     with state.lock:
-        r = route(conn, me, msg)
-        if isinstance(r, str):
+        route_result = route(conn, sender, msg)
+        
+        if isinstance(route_result, str):
             return
-        targets, extra = r
-        pkt = {"type": "TYPING", "username": me["username"], "scope": msg["scope"],
-               "is_typing": bool(msg.get("is_typing")), **extra}
-        emit(pkt, [c for c in targets if c is not conn])
+            
+        recipients, extra_fields = route_result
+        
+        packet = {
+            "type": "TYPING",
+            "username": sender["username"],
+            "scope": msg["scope"],
+            "is_typing": bool(msg.get("is_typing")),  # Anything truthy becomes True
+            **extra_fields
+        }
+        
+        # Exclude the user who is currently typing from receiving their own typing indicator
+        everyone_but_typer = [recipient for recipient in recipients if recipient is not conn]
+        emit(packet, everyone_but_typer)
 
 
-def on_group_create(conn, me, msg):
-    name = msg.get("name")
-    if not isinstance(name, str) or not 1 <= len(name.strip()) <= config.MAX_GROUP_NAME:
-        return error(conn, "INVALID_GROUP_NAME", f"Group name must be 1-{config.MAX_GROUP_NAME} characters")
+def on_group_create(conn, sender, msg):
+    """
+    Handles creating a new chat group. 
+    """
+    group_name = msg.get("name")
+    
+    is_invalid_name = not isinstance(group_name, str) or not 1 <= len(group_name.strip()) <= config.MAX_GROUP_NAME
+    if is_invalid_name:
+        return error(conn, "INVALID_GROUP_NAME", f"Group name must be 1-{config.MAX_GROUP_NAME} characters.")
+        
+    clean_group_name = group_name.strip()
+    
     with state.lock:
-        gid = str(len(state.groups) + 1)  # groups are never deleted, so ids stay unique
-        state.groups[gid] = {"id": gid, "name": name.strip(), "members": {me["username"]}}
-        send(conn, {"type": "GROUP_CREATED", "id": gid, "name": name.strip()})
+        # Generate a unique sequential group ID safely inside the thread lock
+        group_id = str(len(state.groups) + 1)
+        
+        state.groups[group_id] = {
+            "id": group_id, 
+            "name": clean_group_name, 
+            "members": {sender["username"]}  # Stored as a set
+        }
+        
+        send(conn, {"type": "GROUP_CREATED", "id": group_id, "name": clean_group_name})
         push_groups([conn])
-        logger.log(f"GROUP {gid} '{name.strip()}' created by {me['username']}")
+        logger.log(f"GROUP {group_id} '{clean_group_name}' created by {sender['username']}")
 
 
-def on_group_add(conn, me, msg):
+def on_group_add(conn, sender, msg):
+    """
+    Handles adding a new member to an existing group.
+    Validates that the requester is a member and the target user is online.
+    """
     with state.lock:
-        g = state.groups.get(str(msg.get("group_id")))
-        if not g or me["username"] not in g["members"]:
-            return error(conn, "NOT_GROUP_MEMBER", "Only group members can add people")
-        new = state.find(msg.get("username"))
-        if new is None:
-            return error(conn, "USER_OFFLINE", "That user must be online to be added")
-        g["members"].add(state.clients[new]["username"])
-        push_groups(state.members_of(g))
-        send_history(new, g["id"])
-        logger.log(f"GROUP {g['id']} {me['username']} added {state.clients[new]['username']}")
+        group = state.groups.get(str(msg.get("group_id")))
+        
+        # Verify group existence and ensure the caller has permission
+        if not group or sender["username"] not in group["members"]:
+            return error(conn, "NOT_GROUP_MEMBER", "Only group members can add people.")
+            
+        new_member_conn = state.find(msg.get("username"))
+        if new_member_conn is None:
+            return error(conn, "USER_OFFLINE", "That user must be online to be added.")
+            
+        # Add member using their official username registered at login
+        new_member_name = state.clients[new_member_conn]["username"]
+        group["members"].add(new_member_name)
+        
+        # Broadcast updated group list to all current group members and sync chat history
+        push_groups(state.members_of(group))
+        send_history(new_member_conn, group["id"])
+        
+        logger.log(f"GROUP {group['id']} {sender['username']} added {new_member_name}")
 
-
-# Dispatch table: message type -> handler. Also the whitelist of accepted types.
-HANDLERS = {"PING": on_ping, "PROFILE_UPDATE": on_profile, "CHAT": on_chat, "TYPING": on_typing,
-            "GROUP_CREATE": on_group_create, "GROUP_ADD_MEMBER": on_group_add}
-
+HANDLERS = {
+    "PING": on_ping, 
+    "PROFILE_UPDATE": on_profile, 
+    "CHAT": on_chat, 
+    "TYPING": on_typing,
+    "GROUP_CREATE": on_group_create, 
+    "GROUP_ADD_MEMBER": on_group_add
+}
 
 def handle(conn, msg):
-    """Protocol state machine: before LOGIN only LOGIN is legal; after it, any type in HANDLERS."""
+
     if not isinstance(msg, dict):
-        return error(conn, "INVALID_MESSAGE", "Message must be a JSON object")
-    kind = msg.get("type")
+        return error(conn, "INVALID_MESSAGE", "Message must be a JSON object.")
+        
+    msg_type = msg.get("type")
+
     if conn not in state.clients:
-        return login(conn, msg) if kind == "LOGIN" else error(conn, "LOGIN_REQUIRED", "First message must be LOGIN")
-    fn = HANDLERS.get(kind)
-    if fn:
-        fn(conn, state.clients[conn], msg)
-    else:
-        error(conn, "UNKNOWN_TYPE", "Supported: " + ", ".join(HANDLERS))
+        if msg_type == "LOGIN":
+            return login(conn, msg)
+        return error(conn, "LOGIN_REQUIRED", "First message must be LOGIN.")
+    
+    handler = HANDLERS.get(msg_type)
+    if handler:
+        sender = state.clients[conn]
+        return handler(conn, sender, msg)
+        
+    supported_types = ", ".join(HANDLERS.keys())
+
+    return error(conn, "UNKNOWN_TYPE", f"Supported message types: {supported_types}")

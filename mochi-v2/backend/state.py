@@ -1,4 +1,3 @@
-"""Shared server state. Every thread uses it, so every read or write happens while holding `lock`."""
 import collections
 import threading
 

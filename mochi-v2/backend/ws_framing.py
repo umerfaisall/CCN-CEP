@@ -1,60 +1,78 @@
-"""WebSocket handshake and framing (RFC 6455), written by hand on top of a TCP socket.
-
-TCP delivers a byte stream with no message boundaries. WebSocket puts a small header with the
-payload length in front of every message so the receiver knows where each one ends.
+"""
+WebSocket handshake and framing (RFC 6455), written by hand on top of a TCP socket.
 """
 import base64
 import hashlib
 import struct
-
 import config
 
-GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"  # fixed by the RFC, the same for every server
-TEXT, CLOSE, PING, PONG = 0x1, 0x8, 0x9, 0xA  # opcodes we use
+GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"  # Fixed by the RFC; identical for every server implementation
+TEXT, CLOSE, PING, PONG = 0x1, 0x8, 0x9, 0xA  # Standard opcodes used by the chat server
 
 
 def accept_key(client_key):
-    """Sec-WebSocket-Accept = base64(SHA1(key + GUID)); proves we really speak WebSocket."""
-    return base64.b64encode(hashlib.sha1((client_key + GUID).encode()).digest()).decode()
+    """
+    Computes the Sec-WebSocket-Accept header response value:
+    base64(SHA1(client_key + GUID)); proves to the client that we support WebSocket.
+    """
+    combined_key = (client_key + GUID).encode()
+    return base64.b64encode(hashlib.sha1(combined_key).digest()).decode()
 
 
 def frame(opcode, payload=b""):
-    """Server -> client frame: FIN bit + opcode, then the length in 7 bits, 7+16 bits or 7+64 bits.
-    Server frames are never masked."""
-    n = len(payload)
-    if n < 126:
-        head = bytes([0x80 | opcode, n])
-    elif n < 65536:
-        head = bytes([0x80 | opcode, 126]) + struct.pack("!H", n)  # ! = network byte order
+
+    payload_length = len(payload)
+    if payload_length < 126:
+        header = bytes([0x80 | opcode, payload_length])
+    elif payload_length < 65536:
+        header = bytes([0x80 | opcode, 126]) + struct.pack("!H", payload_length)  # ! = network byte order
     else:
-        head = bytes([0x80 | opcode, 127]) + struct.pack("!Q", n)
-    return head + payload
+        header = bytes([0x80 | opcode, 127]) + struct.pack("!Q", payload_length)
+        
+    return header + payload
 
 
 def read_exact(conn, n):
-    """recv() may return fewer bytes than asked (TCP can split a message), so loop until we have n."""
-    buf = b""
-    while len(buf) < n:
-        chunk = conn.recv(n - len(buf))
+    """
+    Reads exactly n bytes from the socket connection. 
+    Loops until all requested bytes arrive to handle TCP stream fragmentation.
+    """
+    buffer = b""
+    while len(buffer) < n:
+        chunk = conn.recv(n - len(buffer))
         if not chunk:
-            raise ConnectionError("peer closed")  # empty read = the other side sent FIN
-        buf += chunk
-    return buf
+            raise ConnectionError("Peer closed connection unexpectedly")  # Empty read = FIN sent
+        buffer += chunk
+    return buffer
 
 
 def read_frame(conn):
-    """Read one frame -> (opcode, payload). Browser frames are always masked, so unmask them."""
+    """
+    Reads and unmasks one WebSocket frame from the client.
+    Returns a tuple of (opcode, payload). Browser client frames are always masked.
+    """
     b1, b2 = read_exact(conn, 2)
-    n = b2 & 0x7F
-    if n == 126:
-        n = struct.unpack("!H", read_exact(conn, 2))[0]
-    elif n == 127:
-        n = struct.unpack("!Q", read_exact(conn, 8))[0]
-    if n > config.MAX_FRAME:
-        raise ValueError("frame too large")
-    mask = read_exact(conn, 4) if b2 & 0x80 else None
-    data = read_exact(conn, n) if n else b""
-    if mask and n:
-        key = (mask * (n // 4 + 1))[:n]  # repeat the 4-byte key to the payload length, XOR in one go
-        data = (int.from_bytes(data, "big") ^ int.from_bytes(key, "big")).to_bytes(n, "big")
-    return b1 & 0x0F, data
+    opcode = b1 & 0x0F
+    
+    payload_length = b2 & 0x7F
+    if payload_length == 126:
+        payload_length = struct.unpack("!H", read_exact(conn, 2))[0]
+    elif payload_length == 127:
+        payload_length = struct.unpack("!Q", read_exact(conn, 8))[0]
+        
+    if payload_length > config.MAX_FRAME:
+        raise ValueError("WebSocket frame exceeds maximum allowed size")
+        
+    is_masked = bool(b2 & 0x80)
+    mask = read_exact(conn, 4) if is_masked else None
+    data = read_exact(conn, payload_length) if payload_length else b""
+    
+    # Unmask the payload data using an XOR operation against the repeating 4-byte masking key
+    if mask and payload_length:
+        mask_key = (mask * (payload_length // 4 + 1))[:payload_length]
+        
+        data_int = int.from_bytes(data, "big")
+        mask_int = int.from_bytes(mask_key, "big")
+        data = (data_int ^ mask_int).to_bytes(payload_length, "big")
+        
+    return opcode, data
