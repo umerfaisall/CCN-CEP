@@ -1,0 +1,6 @@
+measurement,unit,mean,stdev,min,max,run1,run2,run3,run4,run5
+"RTT, PING->PONG on open connection",ms,7.44,0.53,6.69,8.15,7.63,7.43,6.69,8.15,7.30
+new connection (TCP+upgrade+LOGIN_OK),ms,49.01,12.61,30.11,65.18,30.11,47.61,49.24,65.18,52.91
+"chat relay A->server->B, 100 B",ms,14.11,5.39,8.21,20.05,20.05,19.53,8.21,10.38,12.41
+"throughput, 200 x 50 B messages",KB/s,28.26,2.46,25.51,30.28,30.11,29.77,25.64,25.51,30.28
+"throughput, 200 x 1000 B messages",KB/s,291.60,37.73,228.79,320.42,313.09,320.42,311.62,228.79,284.06
