@@ -1,0 +1,10 @@
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Server logs (grow on every run, contain usernames)
+logs/
+*.log
+
+# bench.py's default output name. Rename a run you want to keep (idle.csv, loaded.csv)
+bench_results.csv
