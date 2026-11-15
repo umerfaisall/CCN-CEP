@@ -13,31 +13,6 @@
 
 ---
 
-> **How to use this file.** This is the source material for the submitted report. It follows the
-> required section order from `project.md` §5. Everything we could establish from the code and the
-> server log is already written. Items marked **[TODO]** need evidence only the group can produce:
-> names, `ipconfig` output, the Wireshark screenshot, and multi-host measurements. Delete this box
-> and the checklist before converting to PDF (Times New Roman, 12 pt body, 14 pt headings, rubric as
-> the title page, max 10 pages excluding title page, references and appendices).
->
-> **Evidence still missing (all must be collected on real, separate hosts):**
->
-> | # | Item | Requirement | Section |
-> |---|---|---|---|
-> | 1 | Names, roll numbers, signed contributions table | Report structure | Title, §10 |
-> | 2 | A **third** host with its own IP (laptop, phone or bridged VM) | R3 | §3 |
-> | 3 | `ipconfig` / `ip addr` screenshot from every host | R3 | §3 |
-> | 4 | Annotated Wireshark capture of a server→client CHAT frame between two hosts | R5 | §5 |
-> | 5 | `bench.py` runs from another host under ≥2 conditions (≥5 runs each), table + graph | R6 | §6 |
-> | 6 | Log/screenshot of "server unreachable at client start" (client back-off) | R7 | §9 |
->
-> Already in hand: a two-host session in `logs/server.log` (server `192.168.100.126`, client
-> `192.168.100.50`, 2026-11-14) with JOINED, CHAT, an HTTP timeout and a disconnect/LEFT sequence (§3, §9).
->
-> **Suggested page budget (10 pages):** §1 0.5 · §2 2 · §3 1 · §4 1.5 · §5 1 · §6 1.5 · §7 1 · §8 0.5 · §9 0.75 · §10 0.25.
-
----
-
 ## 1. Introduction and option selected
 
 We built **Mochi Chat**, a multi-client chat system with presence (Option D). A central relay server
@@ -154,22 +129,22 @@ the type. Field names are case-sensitive. Unknown extra fields are ignored. Time
 **History privacy rule:** a user receives lobby messages, private messages they sent or received, and
 messages of groups they are currently a member of. Nothing else is ever replayed.
 
-### 2.4 Legal message order (state machine)
+### 2.4 Legal message order
 
-```
- [TCP connected] --HTTP GET /ws + 101--> [WS OPEN, not logged in]
-       |                                     |  any message except LOGIN -> ERROR LOGIN_REQUIRED (stay)
-       |                                     |  LOGIN invalid/taken      -> ERROR (stay, may retry)
-       |                                     v  LOGIN valid
-       |                          LOGIN_OK, PRESENCE, USER_LIST, GROUP_LIST, [HISTORY]
-       |                                     v
-       |                              [LOGGED IN] -- any client message, any order
-       |                                     |
-       +---- socket closed / CLOSE frame ----+--> server: remove session, broadcast PRESENCE LEFT + USER_LIST
-```
+![Figure 2.1: legal message order](figures/protocol_order.png)
 
-There is no LOGOUT message: closing the connection *is* the logout. One connection carries exactly
-one session.
+**Figure 2.1.** One connection from start to finish, read from top to bottom. Editable source:
+`figures/protocol_order.drawio`.
+
+Rules the figure does not show:
+
+- **Before login:** any message other than `LOGIN` is answered with `ERROR LOGIN_REQUIRED`. The
+  connection stays open and the client is still in phase 2.
+- **A failed login** (invalid or taken name) also leaves the client in phase 2, so it may send
+  `LOGIN` again.
+- **`HISTORY`** is sent only if there is at least one message the user may see.
+- **There is no LOGOUT message:** closing the connection *is* the logout. One connection carries
+  exactly one session.
 
 ### 2.5 Error codes
 
@@ -208,46 +183,61 @@ same order**. The client also sorts replayed history by `seq`.
 
 ### 3.1 Architecture
 
-```
-              Host A: SERVER (also may run a browser client)
-        +-----------------------------------------------------+
-        |  main.py  accept loop on 0.0.0.0:5000               |
-        |    └─ one thread per TCP connection (connection.py) |
-        |         ├─ HTTP GET  -> http_static.py (web files)  |
-        |         └─ GET /ws   -> WebSocket -> handlers.py    |
-        |  shared state (state.py) under one lock             |
-        |  logs/server.log  (ms timestamps, every SEND/RECV)  |
-        +-----------------------------------------------------+
-               ^  TCP :5000                    ^  TCP :5000
-               |                               |
-      Host B: browser client          Host C: browser client / bench.py
-```
+![Figure 3.0: server architecture](figures/architecture.png)
+
+**Figure 3.0.** Architecture of the server process on Host A. Each box is one Python module, and each
+arrow shows what one module passes to another. Editable source: `figures/architecture.drawio`.
+
+How to read it, top to bottom:
+
+1. A browser on Host B or C connects to TCP port 5000. `main.py` accepts the connection and starts a
+   thread for it.
+2. `connection.py` reads the first HTTP request. A plain `GET` for a page file goes to `http_static.py`;
+   `GET /ws` becomes a WebSocket connection, framed by `ws_framing.py`.
+3. For every JSON message that arrives, `handlers.py` validates it, chooses the recipients and replies.
+   It reads and changes the shared data in `state.py`, which sits behind one global lock.
+4. `broadcast.py` builds the messages the server sends by itself (`USER_LIST`, `GROUP_LIST`, `PRESENCE`,
+   `HISTORY`). `outbox.py` turns every outgoing message into a frame and writes it to the clients' sockets.
+5. `logger.py` records every message with a millisecond timestamp in `logs/server.log`.
 
 The server is a relay. Clients never talk to each other directly, which keeps presence and ordering
 in one place (see §7, State vs simplicity).
 
 ### 3.2 Network diagram and IP plan
 
-**[TODO: replace with a drawn diagram (draw.io) showing the access point/switch, each host, the
-link type (Wi-Fi/Ethernet) and its IP.]**
+![Figure 3.1: network diagram](figures/network_diagram.png)
 
-| Host | Role | Device / OS | Interface | IPv4 address | Evidence |
+**Figure 3.1.** Three hosts on one Wi-Fi LAN, with the TCP connections to the server on port 5000.
+Editable source: `figures/network_diagram.drawio`.
+
+| Host | Role | OS | Interface | IPv4 address / mask | Default gateway |
 |---|---|---|---|---|---|
-| A | Server (+ client) | **[TODO]** Windows 11 laptop | Wi-Fi | `192.168.100.126` (from server start-up log) | **[TODO: ipconfig screenshot]** |
-| B | Client | **[TODO]** laptop | **[TODO]** | `192.168.100.50` (seen in server log) | **[TODO: ipconfig screenshot]** |
-| C | Client / benchmark | **[TODO]** | **[TODO]** | **[TODO]** | **[TODO: ipconfig / ip addr]** |
+| A | Server | Windows 11 (build 26200) | Wi-Fi | `192.168.100.126` / `255.255.255.0` | `192.168.100.1` |
+| B | Client | Windows 11 (build 22621) | Wi-Fi | `192.168.100.50` / `255.255.255.0` | `192.168.100.1` |
+| C | Client | Windows | Wi-Fi | `192.168.100.147` / `255.255.255.0` | `192.168.100.1` |
 
-Subnet `192.168.100.0/24` **[TODO: confirm mask and gateway from ipconfig]**. All hosts sit on the same LAN.
+All three addresses are distinct and lie in `192.168.100.0/24` (mask `255.255.255.0`), so the hosts are on
+the same LAN behind one router. None of them uses `127.0.0.1`.
 
-**Evidence of real multi-host operation** (`mochi-v2/logs/server.log`, 2026-11-14):
+![Figure 3.2: ipconfig output of the three hosts](figures/ipconfig_hosts.png)
+
+**Figure 3.2.** `ipconfig` on each host (Wi-Fi adapter, IPv4 line boxed), taken on 2026-11-15 between 14:29
+and 14:44. Full screenshots: `capture/`.
+
+**Evidence of real multi-host operation** (`logs/server.log`):
 
 ```
-11:43:57.009 open http://localhost:5000 here, or http://192.168.100.126:5000 from other hosts
-11:48:03.783 192.168.100.50:49845 websocket open
-11:48:03.793 JOINED Umerr from 192.168.100.50:49845
-11:48:08.428 CHAT seq=4 Umerr -> public (2 chars, 2 recipients)
-11:48:30.065 CHAT seq=6 ahmed -> public (4 chars, 2 recipients)
+2026-11-14 11:43:57.009 open http://localhost:5000 here, or http://192.168.100.126:5000 from other hosts
+2026-11-14 11:48:03.783 192.168.100.50:49845 websocket open
+2026-11-14 11:48:03.793 JOINED Umerr from 192.168.100.50:49845
+2026-11-14 11:48:08.428 CHAT seq=4 Umerr -> public (2 chars, 2 recipients)
+2026-11-14 11:48:30.065 CHAT seq=6 ahmed -> public (4 chars, 2 recipients)
+2026-11-15 14:27:39.437 192.168.100.147:49735 websocket open
+2026-11-15 14:27:39.802 JOINED Jia from 192.168.100.147:49735
+2026-11-15 14:36:25.183 192.168.100.147:49735 closed (Peer closed connection unexpectedly)
 ```
+
+The first five lines show Host A serving Host B. The last three show Host C joining as `Jia` and leaving.
 
 **Deployment notes we hit in practice:**
 - The server must bind `0.0.0.0`, not `127.0.0.1`, or other hosts cannot connect.
@@ -336,38 +326,69 @@ Setting `TCP_NODELAY` removes Nagle's batching delay, at the cost of more small 
 
 ## 5. Packet capture and encapsulation analysis (R5)
 
-**[TODO: capture and annotate.]** Procedure:
+**Capture setup.** Wireshark ran on Host A (the server, `192.168.100.126`) on its Wi-Fi interface. The
+capture was started *before* Host B loaded the page, so it includes the HTTP upgrade and Wireshark can
+decode WebSocket. File: `Wireshark.pcapng` (submitted with the source code). The analysed frame is
+**packet 227**, captured 2026-11-15 12:07:19.0238 (Pakistan Standard Time), 15.645 s into the capture.
+It is the server relaying a public CHAT message `"Hi"`, sent by user `Umerr` on Host B, to the online users.
 
-1. Start Wireshark on **Host A (server)** on its LAN interface, with capture filter `tcp port 5000`.
-2. From Host B, log in and send a short lobby message (e.g. "hi").
-3. Display filter: `websocket && ip.src == 192.168.100.126`.
-   Pick a **server→client** frame. Client→server frames are **masked**, so their JSON is XOR-scrambled
-   and unreadable in the capture. That is a nice point to mention: masking exists so that a browser
-   cannot be tricked into sending attacker-chosen bytes that confuse intermediary caches.
-4. Expand every layer and screenshot. Annotate with arrows.
+![Figure 5.1: annotated Wireshark packet 227](figures/wireshark_packet227_annotated.png)
 
-**What the annotated packet must show, and the expected values** (a CHAT "hi" relayed to Host B):
+**Figure 5.1.** Packet 227 as captured on Host A, annotated layer by layer. The capture file is
+`Wireshark.pcapng`.
 
-| Layer (Lecture 03) | Header fields to label | Expected value | Size |
+### 5.1 Observed values for packet 227 (server `192.168.100.126` → client `192.168.100.50`)
+
+| Layer (Lecture 03) | Field | Observed value | Size |
 |---|---|---|---|
-| Link (Ethernet II) | Destination MAC, source MAC, EtherType | B's MAC, A's MAC, `0x0800` (IPv4) | 14 B |
-| Network (IPv4) | Source IP, destination IP, protocol, TTL, total length | `192.168.100.126` → `192.168.100.50`, protocol 6 (TCP), TTL 128 (Windows) | 20 B |
-| Transport (TCP) | Source port, destination port, seq/ack, flags | `5000` → client ephemeral port (e.g. `49845`), flags PSH+ACK | 20 B (+12 if timestamps are used) |
-| Framing (WebSocket) | FIN, opcode, MASK, payload length | FIN=1, opcode=1 (text), MASK=0, length=101 → bytes `81 65` | 2 B |
-| Application (Mochi) | JSON | `{"type":"CHAT","username":"ahmed","text":"hi","scope":"public","seq":2,"timestamp":…}` | 101 B |
+| Link (Ethernet II) | Destination MAC | `20:79:18:3a:e3:0f` (Intel adapter, Host B) | 14 B |
+| | Source MAC | `78:be:81:05:50:10` (FN-Link adapter, Host A) | |
+| | Type | `0x0800` (IPv4) | |
+| Network (IPv4) | Version, header length | 4, 20 bytes | 20 B |
+| | Total length | 145 (= 20 + 20 + 105) | |
+| | Flags, TTL, protocol | Don't Fragment, **128**, **6 (TCP)** | |
+| | Source, destination IP | **192.168.100.126**, **192.168.100.50** | |
+| Transport (TCP) | Source, destination port | **5000**, **53586** (the browser's ephemeral port) | 20 B |
+| | Flags | `0x018` = PSH, ACK | |
+| | Seq / Ack (relative) | 1208 / 769 | |
+| | Window | 252 × scale 256 = 64 512 B | |
+| | Payload | 105 B | |
+| Framing (WebSocket) | FIN, opcode, MASK | 1, 1 (text), **0** (server→client frames are not masked) | 2 B |
+| | Payload length | 103 (header bytes `81 67`) | |
+| Application (Mochi) | JSON | `{"type":"CHAT","username":"Umerr","text":"Hi","scope":"public","seq":22,"timestamp":1794726439.0235255}` | 103 B |
+| **Whole frame** | | **14 + 20 + 20 + 2 + 103 = 159 B** (Wireshark: 159 bytes on wire) | **159 B** |
 
-**Encapsulation discussion.** Each layer adds its own header and treats everything above it as opaque
-payload:
-- the JSON message becomes a WebSocket frame;
-- the frame becomes a TCP segment payload, with ports identifying the server process and the browser's socket;
-- the segment becomes an IP datagram payload, with IPs identifying the hosts;
-- the datagram becomes a link-layer frame payload, with MACs identifying the next hop on this LAN.
+### 5.2 Encapsulation discussion
 
-For the 2-character message, the frame is about 157 B and only 2 bytes are the user's text.
-**[TODO: replace with the exact frame length from the capture.]**
+Each layer treats everything above it as opaque payload and adds its own header:
 
-*Note for Wi-Fi captures on Windows:* without monitor mode, Wireshark shows a synthesised
-Ethernet II header rather than the 802.11 header. State this in the report.
+1. The server builds the JSON message (103 B).
+2. `ws_framing.frame()` prepends the 2-byte WebSocket header. This is what lets the receiver find
+   the message boundary in the TCP byte stream.
+3. TCP (in the kernel) prepends a 20-byte header. The ports identify the server process (5000) and the
+   browser's socket (53586). Sequence and acknowledgement numbers provide reliable, ordered delivery.
+4. IP prepends 20 bytes. The IP addresses identify the two hosts, and TTL 128 is the Windows default.
+5. The link layer prepends 14 bytes. The MAC addresses identify the adapters on this LAN.
+
+Observations from the capture:
+
+- **Mask = False.** Client→server frames carry a masking key, so their JSON would appear scrambled in
+  Wireshark. Server→client frames, like this one, are readable.
+- **PSH, ACK, with ACK = 769.** The server pushes the relayed message immediately (`TCP_NODELAY`) and
+  piggybacks the acknowledgement of the client's earlier data on the same segment.
+- **Overhead.** 56 of the 159 bytes (35 %) are headers, and the user's text `Hi` is 2 bytes, **1.3 %** of
+  the frame. The JSON field names, username, `seq` and timestamp make up most of the remaining 101 B.
+  This is the cost of choosing a readable text format (§7.3).
+- **Checksums show as "unverified".** The sending adapter computes the checksums after Wireshark sees
+  the packet (checksum offload). It is not an error.
+- **Server-side delay, measured from the capture.** The JSON `timestamp` is set when the server builds
+  the packet (`...439.0235255`). Wireshark stamped the frame leaving the server at `...439.0238455`.
+  The difference is **about 0.32 ms**: JSON encoding, framing, the per-socket lock and the send call.
+  This is the d_proc term of the delay model (§6.3), and it matches the ~0.3 ms measured on loopback.
+  Because the capture is on the server, no network delay is included in it.
+
+*Note on Wi-Fi captures on Windows:* without monitor mode, Npcap presents Wi-Fi traffic as Ethernet II.
+The real 802.11 header (with the access point's address and Wi-Fi-specific fields) is not visible.
 
 ---
 
@@ -409,63 +430,101 @@ Each measurement is repeated **5 times**; mean, standard deviation, min and max 
 
 ### 6.2 Results
 
-**[TODO: fill from the multi-host runs.]**
+Raw data: `idle.csv` and `loaded.csv` (`bench.py` output, 5 runs per measurement; each RTT and relay
+value is itself the mean of 20 samples). Client: Host B (`192.168.100.50`, Windows 11) ran `bench.py`
+against the server on Host A (`192.168.100.126`); both were on the house Wi-Fi, which other people also use.
+Host A reports 2.4 GHz, channel 1, 802.11g, 48 Mb/s link rate (`netsh wlan show interfaces`, checked after
+the runs; Host B's band was not recorded). Run times, taken from the server log (the benchmark's own sessions `a<pid>`, `b<pid>`
+and `tmp<pid>_<n>`):
 
-| Measurement | Unit | Idle Wi-Fi: mean ± sd | Loaded Wi-Fi: mean ± sd |
+| Condition | Started | Finished | Server-log session |
 |---|---|---|---|
-| RTT PING→PONG | ms | | |
-| New connection | ms | | |
-| Chat relay 100 B | ms | | |
-| Throughput 50 B | KB/s | | |
-| Throughput 1000 B | KB/s | | |
+| Idle | 2026-11-15 12:33:59 | 12:34:07 | `a19776`, `b19776` |
+| Loaded | 2026-11-15 12:37:22 | 12:37:31 | `a18796`, `b18796` |
+
+The idle run came first and the loaded run 3 min 15 s after it, so the order was not randomised.
+*Idle* means no extra load from us: other people in the house were using their phones on the same
+Wi-Fi, so the network was not empty. *Loaded*: we started a YouTube video for this run (the device it
+played on and its exact start time were not recorded).
+
+| Measurement | Unit | Idle Wi-Fi: mean ± sd | Loaded Wi-Fi: mean ± sd | Idle min–max | Loaded min–max |
+|---|---|---|---|---|---|
+| RTT PING→PONG | ms | 7.44 ± 0.53 | 6.71 ± 2.64 | 6.69–8.15 | 4.32–10.86 |
+| New connection (TCP + upgrade + LOGIN_OK) | ms | 49.01 ± 12.61 | 21.70 ± 7.33 | 30.11–65.18 | 13.97–31.94 |
+| Chat relay, 100 B | ms | 14.11 ± 5.39 | 22.90 ± 22.61 | 8.21–20.05 | 4.91–51.40 |
+| Throughput, 50 B messages | KB/s | 28.26 ± 2.46 | 24.01 ± 12.08 | 25.51–30.28 | 10.09–41.26 |
+| Throughput, 1000 B messages | KB/s | 291.60 ± 37.73 | 312.64 ± 59.83 | 228.79–320.42 | 240.83–387.74 |
 
 *Baseline only, not valid for R6 (loopback, single machine, 2026-10-31):* RTT 0.28 ± 0.02 ms;
 new connection 1.61 ± 0.21 ms; relay 0.37 ± 0.02 ms; throughput 178 ± 20 KB/s (50 B) and
 2719 ± 408 KB/s (1000 B). It shows the server's own processing cost with propagation and
-transmission close to zero. It is useful as the "d_proc" reference in §6.3.
+transmission close to zero, and is used as the d_proc reference in §6.3.
 
-**Graph:** **[TODO]** a bar chart of mean with standard-deviation error bars per measurement, one bar
-colour per condition. The plotting script is in Appendix B.
+![Figure 6.1: idle vs loaded Wi-Fi (mean, standard deviation, individual runs)](r6_results.png)
+
+**Figure 6.1.** Bars are means over 5 runs, error bars are one standard deviation, dots are the
+individual runs. Generated by `plot.py` (Appendix B).
 
 ### 6.3 Analysis with the nodal delay model (Lecture 02)
 
-d_nodal = d_proc + d_queue + d_trans + d_prop, applied at each hop. A relay crosses
-client→AP→server→AP→client.
+d_nodal = d_proc + d_queue + d_trans + d_prop, applied at each hop. Both laptops were on Wi-Fi, so
+every packet crosses the air twice (client→AP, AP→server) and a round trip crosses it four times.
 
-| Component | Estimate on our LAN | Expected impact |
+| Component | Estimate on our network | Expected impact |
 |---|---|---|
-| d_prop | ~10–50 m of air/cable at ~2–3×10⁸ m/s ≈ **0.05–0.2 µs** | Negligible |
-| d_trans | 157 B frame: at 100 Mb/s ≈ 12.6 µs; at a 50 Mb/s Wi-Fi rate ≈ 25 µs. A 1000-B message ≈ 1 056 B ≈ 85–170 µs | Small; grows linearly with message size |
-| d_proc | Python: JSON parse/encode, lock, log line, syscalls. Loopback measured **~0.3 ms per message** | **Dominant on a wired LAN** |
-| d_queue | Wi-Fi contention (CSMA/CA back-off), retransmissions, AP buffering | **Dominant source of variance on Wi-Fi**: expect the loaded run to have a higher mean *and* a larger sd than the idle run |
+| d_prop | ~10–50 m at ~2–3×10⁸ m/s ≈ **0.05–0.2 µs** | Negligible |
+| d_trans | 159 B frame (measured, §5): at 100 Mb/s ≈ 12.7 µs; at a 50 Mb/s Wi-Fi rate ≈ 25 µs. A 1000-B message ≈ 1 056 B ≈ 85–170 µs | Small; grows linearly with message size |
+| d_proc | Python: JSON parse/encode, lock, log line, syscalls. About **0.3 ms** per message (loopback benchmark, and 0.32 ms measured in the capture, §5) | Small but constant |
+| d_queue | Wi-Fi channel access (CSMA/CA back-off), AP buffering, retransmissions | **The unpredictable part**; expected to grow when others share the channel |
 
-**Points to discuss with your numbers:**
-- **Idle vs loaded Wi-Fi.** The link, the distance and the server are identical in both runs, so
-  d_prop, d_trans and d_proc stay the same. Any increase in the loaded run is **d_queue**:
-  - frames wait in the access point's buffer behind the video traffic;
-  - stations wait longer for a free channel (CSMA/CA back-off);
-  - collisions cause more retransmissions.
+**What the numbers show**
 
-  Expect the loaded run to raise the RTT and relay time, and above all the **standard deviation**,
-  because queueing varies from moment to moment. Throughput should drop, because the airtime is shared.
-- **Persistent vs new connection.** A new connection costs the TCP handshake (1 RTT), the HTTP
-  upgrade (1 RTT) and LOGIN→LOGIN_OK (1 RTT), plus server processing for registration and the
-  broadcasts. Expect roughly ≥ 3× RTT + d_proc. On loopback it was 1.61 ms vs 0.28 ms (5.7×).
-- **Small vs large messages.** Loopback: 50 B messages at 178 KB/s ≈ 3 650 msg/s ≈ **0.27 ms per
-  message**; 1000 B messages at 2 719 KB/s ≈ 2 780 msg/s ≈ **0.36 ms per message**. The per-message
-  cost barely changes while the size grows 20×. The system is limited by fixed **processing** per
-  message, not by transmission, so larger messages give far higher payload throughput. Check whether
-  the same holds across real hosts (on Wi-Fi, d_trans and d_queue grow and the gap may shrink).
-- **Relay ≈ RTT + server processing.** The relay time should be close to one client↔server RTT plus
-  the server's d_proc, because A→server and server→B are each half a round trip.
-- **Logging cost** (if measured). Every message writes a log line inside the global lock, which adds
-  d_proc. Compare with `--no-log`.
+- **Wi-Fi vs loopback.** The RTT rises from 0.28 ms to 7.4 ms (about 26×). d_prop and d_trans are
+  microseconds and d_proc is ~0.3 ms, so roughly **7 ms is spent in the wireless hops**: waiting for
+  the channel and for the access point to forward each frame, four times per round trip.
+- **Idle vs loaded: the spread changed, the averages mostly did not.**
+  - The standard deviation grew in four of five measurements: RTT 0.53 → 2.64 ms (5×), relay
+    5.4 → 22.6 ms (4×), 50 B throughput 2.5 → 12.1 KB/s (5×), 1000 B throughput 38 → 60 KB/s (1.6×).
+  - The loaded **relay** runs split into two groups: three at 4.9–8.2 ms (about the RTT) and two at
+    43–51 ms. Each run averages 20 relays, so the slow runs were slow for about a second: a queue built
+    up behind the competing traffic and then drained.
+  - The loaded **mean RTT was not higher** (6.71 vs 7.44 ms); its range (4.3–10.9 ms) simply contains
+    both the fastest and the slowest run of the pair.
+  - So in this experiment the competing traffic showed up as **unpredictable delay (d_queue)**, not as a
+    uniformly higher delay. With 5 runs and these spreads, we cannot claim that the means differ,
+    except for the new-connection result below.
+- **New connection: opposite to the prediction.** Setup took 49.0 ms idle but 21.7 ms loaded.
+  - The model predicts 3 round trips (TCP handshake, HTTP upgrade, LOGIN→LOGIN_OK) plus processing.
+    The loaded run fits it: 21.7 ms ≈ 3.2 × its 6.71 ms RTT.
+  - The idle run took 6.6 × its RTT, which is more than the model explains. The two ranges barely
+    overlap (30–65 ms vs 14–32 ms), so the difference is probably real.
+  - **We did not identify the cause.** Possibilities we could not test: other household traffic during
+    the "idle" run (the network is shared with other people, so "idle" is only relatively idle), or Wi-Fi
+    power saving delaying packets on a quiet link. Testing them needs repeated runs on a private network.
+- **Small vs large messages.**
+  - 50 B messages: 28.3 KB/s ≈ 578 msg/s ≈ **1.7 ms per message**. 1000 B messages: 291.6 KB/s ≈ 298
+    msg/s ≈ **3.4 ms per message**.
+  - The message is 20× larger but costs only 1.9× more, so payload throughput is **10× higher**. A fixed
+    per-message cost (processing plus one Wi-Fi channel access per packet) dominates, as on loopback
+    (0.27 vs 0.36 ms per message, a 15× throughput gap).
+  - On Wi-Fi the gap **shrank** from 15× to 10× and the per-message cost is 6–9× higher than on
+    loopback, because airtime for the bigger frame now matters (d_trans and d_queue).
+- **Relay vs RTT (correction to our first estimate).** We expected relay ≈ RTT + d_proc. The idle relay
+  is 14.1 ms, about 1.9 × the RTT. The benchmark's relay measurement sends one message from A and waits
+  for **two deliveries** (to B, then A's own echo), and both connections belong to the same laptop, so it
+  crosses the air once up and twice down: roughly 1.5 × RTT + d_proc ≈ 11–12 ms, close to what we see.
+
+**Limits of this experiment.** One shared home network, not a controlled lab; 5 runs per condition; one
+client laptop running both benchmark connections; idle run first and loaded run 3 min 15 s later, not in
+random order. These results
+describe our setup and should not be generalised.
 
 ---
 
 ## 7. Design tensions and engineering justification (Section 6)
 
-**[TODO: once §6 numbers exist, replace the loopback figures below with your multi-host figures.]**
+*(Where a figure below is marked "loopback", it is from the single-machine baseline. Wi-Fi figures are
+from §6.2.)*
 
 ### 7.1 State vs simplicity: we keep state on the server, in RAM
 
@@ -491,9 +550,9 @@ the `seq` counter in memory, with no database.
 
 **Position:** each client keeps one TCP/WebSocket connection open for the whole session.
 
-**Evidence:** connection setup costs **[TODO: multi-host new-connection mean]** ms against
-**[TODO: RTT]** ms per message on an open connection (loopback: 1.61 vs 0.28 ms). In bytes, setting
-up a session costs ≈ 1.4 KB against ≈ 157 B for one message on an open connection (§8).
+**Evidence:** connection setup costs **49.0 ms (idle) / 21.7 ms (loaded)** against an RTT of **7.4 / 6.7 ms**
+on an open connection (§6.2; loopback: 1.61 vs 0.28 ms). In bytes, setting
+up a session costs ≈ 1.4 KB against ≈ 159 B for one message on an open connection (§8).
 
 **Cost:**
 - the server holds one socket, one thread (with its own stack) and kernel TCP buffers per online user,
@@ -513,11 +572,11 @@ replaced by `select`/`selectors`-based I/O.
 - Easy for another group to implement from the spec.
 
 **Measured cost (from our log):**
-- The relayed CHAT "hi" is **101 B** of JSON for 2 B of text.
+- The relayed CHAT "Hi" captured in Wireshark (§5) is **103 B** of JSON for 2 B of text.
 - A binary layout (type 1 B, scope 1 B, seq 4 B, timestamp 8 B, length-prefixed username 1+5 B,
-  length-prefixed text 2+2 B) would be **24 B**: 76 % smaller at the application layer.
-- Counting Ethernet + IPv4 + TCP + WebSocket headers (56 B), the frame shrinks from 157 B to 80 B,
-  **49 % smaller**.
+  length-prefixed text 2+2 B) would be **24 B**: 77 % smaller at the application layer.
+- Counting Ethernet + IPv4 + TCP + WebSocket headers (56 B), the frame shrinks from 159 B to 80 B,
+  **50 % smaller**.
 - For a 1000-character message, JSON adds ~99 B to ~1056 B (< 10 %).
 - So the overhead matters only for short messages, PRESENCE and TYPING. We kept readability.
 
@@ -547,7 +606,7 @@ broadcasts. Mention this briefly if space allows.
 
 | Message | Payload |
 |---|---|
-| CHAT "hi" | 101 B |
+| CHAT "Hi" (user `Umerr`, `seq` 22; captured in Wireshark) | 103 B |
 | PING | 39 B |
 | PONG | 72 B |
 | PRESENCE | 92–94 B |
@@ -558,7 +617,8 @@ broadcasts. Mention this briefly if space allows.
 - Ethernet + IPv4 + TCP = 54 B per packet;
 - plus a 2 B WebSocket header from the server, or 6 B from the client (mask).
 
-**[TODO: confirm the header sizes in your capture; add 12 B per packet if TCP timestamps appear.]**
+Header sizes confirmed in the capture (§5.1): Ethernet 14 B, IPv4 20 B, TCP 20 B with **no options** (no
+timestamps), so 54 B per data packet. The CHAT frame in the capture is **159 B**: 54 + 2 + 103 B of JSON.
 
 **(a) Connection reuse.** Setting up a new session costs about **1.4 KB**:
 
@@ -570,20 +630,20 @@ broadcasts. Mention this briefly if space allows.
 | LOGIN_OK / PRESENCE / USER_LIST / GROUP_LIST | ~300 B |
 | Packet headers (~14 packets incl. handshake and teardown) | ~780 B |
 
-Sending a message on an already-open connection costs about **157 B**. A design that reconnected per
+Sending a message on an already-open connection costs about **159 B**. A design that reconnected per
 message would use ~9× the bytes, so **reuse saves ≈ 89 %** per message.
 
-**(b) Format.** A compact binary CHAT saves 77 B per delivery (49 % per packet, §7.3).
+**(b) Format.** A compact binary CHAT saves 79 B per delivery (50 % per packet, §7.3).
 
 Illustrative population: a lobby of 200 online students, each sending 50 short messages a day.
 Every public message is delivered to all 200 users, so 200 × 50 × 200 = **2 million deliveries/day**.
 
 | Format | Arithmetic | Per day |
 |---|---|---|
-| JSON | 2 M × 157 B | ≈ 314 MB |
+| JSON | 2 M × 159 B | ≈ 318 MB |
 | Binary | 2 M × 80 B | ≈ 160 MB |
 
-So the binary format saves ≈ 154 MB/day.
+So the binary format saves ≈ 158 MB/day.
 
 **(c) Keep-alive is the hidden cost.** Each 4-second PING cycle costs:
 - PING: 39 + 6 + 54 = 99 B;
@@ -718,39 +778,89 @@ Repository / archive: **[TODO: link]**. Submitted version: `mochi-v2/`.
 ## Appendix B: Plot script for §6
 
 ```python
-# py plot.py idle.csv loaded.csv   (matplotlib is a plotting helper, allowed under R2)
-import csv, sys
+"""R6 graph from bench.py CSV files.   py plot.py idle.csv loaded.csv   ->  r6_results.png
+
+One panel per measurement, one bar per condition (mean), error bar = standard deviation,
+dots = the individual runs. matplotlib is only a plotting helper (allowed under R2).
+"""
+import csv
+import sys
+
 import matplotlib.pyplot as plt
 
+SHORT = {  # panel titles; keys are the measurement names bench.py writes
+    "RTT, PING->PONG on open connection": "RTT (PING→PONG)",
+    "new connection (TCP+upgrade+LOGIN_OK)": "New connection",
+    "chat relay A->server->B, 100 B": "Chat relay, 100 B",
+    "throughput, 200 x 50 B messages": "Throughput, 50 B msgs",
+    "throughput, 200 x 1000 B messages": "Throughput, 1000 B msgs",
+}
+
+
 def load(path):
-    with open(path) as f:
+    with open(path, newline="") as f:
         rows = list(csv.DictReader(f))
-    return {r["measurement"]: (float(r["mean"]), float(r["stdev"]), r["unit"]) for r in rows}
+    return {
+        r["measurement"]: {
+            "mean": float(r["mean"]),
+            "sd": float(r["stdev"]),
+            "unit": r["unit"],
+            "runs": [float(r[k]) for k in r if k.startswith("run")],
+        }
+        for r in rows
+    }
+
 
 files = sys.argv[1:]
+if len(files) < 2:
+    sys.exit("usage: py plot.py idle.csv loaded.csv")
+names = [p.rsplit(".", 1)[0].replace("_", " ") for p in files]
 data = [load(p) for p in files]
-names = list(data[0])
-fig, axes = plt.subplots(1, len(names), figsize=(3 * len(names), 3.5))
-for ax, name in zip(axes, names):
-    means = [d[name][0] for d in data]
-    sds = [d[name][1] for d in data]
-    ax.bar(range(len(files)), means, yerr=sds, capsize=4)
-    ax.set_xticks(range(len(files)), [p.rsplit(".", 1)[0] for p in files])
-    ax.set_title(name, fontsize=8)
-    ax.set_ylabel(data[0][name][2])
+measurements = list(data[0])
+
+fills = ["#9ecae1", "#2b6cb0"]   # light vs dark: still distinguishable in a black-and-white print
+hatches = ["", "//"]
+fig, axes = plt.subplots(1, len(measurements), figsize=(3 * len(measurements), 3.6))
+for ax, m in zip(axes, measurements):
+    for i, d in enumerate(data):
+        s = d[m]
+        ax.bar(i, s["mean"], yerr=s["sd"], capsize=5, color=fills[i % 2], hatch=hatches[i % 2],
+               edgecolor="black", linewidth=0.8)
+        ax.scatter([i + (j - 2) * 0.06 for j in range(len(s["runs"]))], s["runs"],
+                   s=16, color="black", edgecolors="white", linewidths=0.6, zorder=3)
+    ax.set_xticks(range(len(data)), names)
+    ax.set_title(SHORT.get(m, m), fontsize=10)
+    ax.set_ylabel(data[0][m]["unit"])
+    ax.spines[["top", "right"]].set_visible(False)
+fig.suptitle("bar = mean of 5 runs, error bar = standard deviation, dots = individual runs", fontsize=9)
 fig.tight_layout()
 fig.savefig("r6_results.png", dpi=200)
+print("saved r6_results.png")
 ```
 
 ## Appendix C: AI usage declaration
 
-AI tool used: **Claude (Anthropic), via Claude Code**. All AI output was reviewed by the group. Every
-member must be able to explain all of it in the demo.
+**Tool.** Claude (Anthropic), models Claude Opus 5.5 and Claude Sonnet 5.5, used through Claude Code in
+VS Code between 2026-10-31 and 2026-11-15.
 
-| Date | Part of the project | What the AI produced | What the group did / changed |
+**What the AI did not do.** It produced no measurements. Every number in §5 (packet capture), §6
+(benchmark), §8 (message sizes) and §9 (failure evidence) comes from the group's own Wireshark capture,
+benchmark CSV files and server log, collected on the group's three laptops. The AI wrote the text
+around those numbers and did the arithmetic on them.
+
+**How the AI-written code was checked.**
+- 33 raw-socket protocol tests covering every message type and every error code.
+- After the readability edits, a comparison of the code against the version before the edit, ignoring
+  comments and docstrings, to show that behaviour was unchanged.
+- The original `bench.py`, run unchanged against the modular server.
+- Real use on three laptops (Hosts A, B and C, §3).
+
+All AI output was reviewed by the group. Every member must be able to explain all of it in the demo.
+
+| Date | Part of the project | What the AI produced | What the group did |
 |---|---|---|---|
-| **[TODO]** | v1 server and client (`mochi-v1/`) | **[TODO: state honestly how v1 was written]** | **[TODO]** |
-| 2026-10-31 | Backend modularisation, new UI | Split of the single-file server into 10 modules; logging and command-line options; new HTML/CSS and adapted `app.js`; `PROCESS.md`; a raw-socket protocol test script | Reviewed; ran on two laptops; **[TODO]** |
-| 2026-11-14 | Code readability | Rewrote `broadcast.py`, `state.py` and `handlers.py` with explanatory comments and descriptive variable names (behaviour verified unchanged by the protocol test) | Group read each file and trimmed comments; **[TODO]** |
-| 2026-11-14 | Repository layout, report | Moved v1 into `mochi-v1/`; drafted this report outline and the analysis text in §4, §7 and §8 from our code and logs | **[TODO: what you rewrote, measured and verified]** |
-| **[TODO]** | Explanations | Walkthroughs of the protocol, server code and networking concepts | Used for understanding; not copied into the report |
+| 2026-10-31 | Backend modularisation and new UI (`mochi-v2/`) | Split of the single-file server into 10 modules; logging and command-line options; new HTML/CSS and an adapted `app.js`; `PROCESS.md`; a raw-socket protocol test script | Set the scope: keep the original code untouched, put the new version in its own folder with `backend/` and `web/`, and replace the old look with a neutral UI. Reviewed the modules and ran the system on two laptops |
+| 2026-11-14 | Code readability | Rewrote `broadcast.py` and `state.py` so they can be read and explained; added comments to `handlers.py` and replaced short variable names with descriptive ones (behaviour checked unchanged by the protocol test) | Asked for each file to be made readable, read each file as it was explained, and trimmed comments and docstrings in `broadcast.py`, `handlers.py` and `outbox.py` |
+| 2026-11-14 to 2026-11-15 | Repository layout and report text | Moved the original version into `mochi-v1/`; drafted `report.md`: protocol specification from the code (§2), transport choice per message type (§4.3), design tensions (§7), sustainability arithmetic (§8) | Supplied the logs, captures and results the text is based on; filled in the benchmark conditions; reviewed the draft |
+| 2026-11-15 | Evidence figures and benchmark analysis | Network diagram (`network_diagram.drawio` and PNG), annotated Wireshark figure and combined `ipconfig` figure (generated by script from the group's own screenshots); `plot.py` and the R6 graph; the analysis text in §5, §6.3 and §8; the run-time table in §6.2, derived from `server.log` | Ran the benchmark on Host B (two runs), captured packet 227 on Host A, took the `ipconfig` screenshots, and set up the three-host network |
+| 2026-10-31 to 2026-11-15 | Explanations | Walkthroughs of the brief, the protocol, the server code and networking concepts (WebSocket framing, TCP behaviour, Wireshark output) | Used for understanding; not copied into the report |
